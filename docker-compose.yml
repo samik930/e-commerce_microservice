@@ -1,0 +1,30 @@
+version: '3.9'
+
+services:
+  api-gateway:
+    image: api-gateway:latest
+    build: ./api-gateway
+    ports:
+      - "8080:8080"
+    depends_on:
+      - user-service
+      - product-service
+      - order-service
+
+  user-service:
+    image: user-service:latest
+    build: ./user-service
+
+  product-service:
+    image: product-service:latest
+    build: ./product-service
+
+  order-service:
+    image: order-service:latest
+    build: ./order-service
+
+  frontend:
+    image: frontend:latest
+    build: ./frontend
+    ports:
+      - "3000:3000"

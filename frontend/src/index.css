@@ -1,0 +1,14 @@
+html, body, #root {
+  height: 100%;
+  margin: 0;
+  font-family: Inter, system-ui, sans-serif;
+  background: #f4f7fa;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+button, input {
+  font: inherit;
+}
