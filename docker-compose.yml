@@ -1,30 +1,145 @@
-version: '3.9'
-
 services:
-  api-gateway:
-    image: api-gateway:latest
-    build: ./api-gateway
+  # ---------------------------------------------------
+  # 1. PostgreSQL Database Service
+  # ---------------------------------------------------
+  postgres:
+    image: postgres:16-alpine
+    restart: always
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-postgres}
+      POSTGRES_USER: ${POSTGRES_USER:-postgres}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD environment variable is required}
     ports:
-      - "8080:8080"
+      # Exposes database on host port 5432 for local management tools (e.g., DBeaver, pgAdmin).
+      # Remove or comment out this mapping if external host access is not required.
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./schema.sql:/docker-entrypoint-initdb.d/schema.sql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-postgres} -d ${POSTGRES_DB:-postgres}"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  # ---------------------------------------------------
+  # 2. API Gateway Service
+  # ---------------------------------------------------
+  api-gateway:
+    build:
+      context: ./api-gateway
+      dockerfile: Dockerfile
+    restart: always
+    ports:
+      - "5000:5000"
+    environment:
+      - PORT=5000
+      - USER_SERVICE_URL=http://user-service:5001
+      - PRODUCT_SERVICE_URL=http://product-service:5002
+      - ORDER_SERVICE_URL=http://order-service:5003
+      - PAYMENT_SERVICE_URL=http://payment-service:5004
+      - JWT_SECRET=${JWT_SECRET:?JWT_SECRET environment variable is required}
+      - UPSTASH_REDIS_REST_URL=${UPSTASH_REDIS_REST_URL:?UPSTASH_REDIS_REST_URL environment variable is required}
+      - UPSTASH_REDIS_REST_TOKEN=${UPSTASH_REDIS_REST_TOKEN:?UPSTASH_REDIS_REST_TOKEN environment variable is required}
     depends_on:
       - user-service
       - product-service
       - order-service
+      - payment-service
 
+  # ---------------------------------------------------
+  # 3. User Service
+  # ---------------------------------------------------
   user-service:
-    image: user-service:latest
-    build: ./user-service
-
-  product-service:
-    image: product-service:latest
-    build: ./product-service
-
-  order-service:
-    image: order-service:latest
-    build: ./order-service
-
-  frontend:
-    image: frontend:latest
-    build: ./frontend
+    build:
+      context: ./user-service
+      dockerfile: Dockerfile
+    restart: always
     ports:
-      - "3000:3000"
+      - "5001:5001"
+    environment:
+      - PORT=5001
+      - JWT_SECRET=${JWT_SECRET:?JWT_SECRET environment variable is required}
+      - DATABASE_URL=${DATABASE_URL:?DATABASE_URL environment variable is required}
+      - UPSTASH_REDIS_REST_URL=${UPSTASH_REDIS_REST_URL:?UPSTASH_REDIS_REST_URL environment variable is required}
+      - UPSTASH_REDIS_REST_TOKEN=${UPSTASH_REDIS_REST_TOKEN:?UPSTASH_REDIS_REST_TOKEN environment variable is required}
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  # ---------------------------------------------------
+  # 4. Product Service
+  # ---------------------------------------------------
+  product-service:
+    build:
+      context: ./product-service
+      dockerfile: Dockerfile
+    restart: always
+    ports:
+      - "5002:5002"
+    environment:
+      - PORT=5002
+      - JWT_SECRET=${JWT_SECRET:?JWT_SECRET environment variable is required}
+      - DATABASE_URL=${DATABASE_URL:?DATABASE_URL environment variable is required}
+      - UPSTASH_REDIS_REST_URL=${UPSTASH_REDIS_REST_URL:?UPSTASH_REDIS_REST_URL environment variable is required}
+      - UPSTASH_REDIS_REST_TOKEN=${UPSTASH_REDIS_REST_TOKEN:?UPSTASH_REDIS_REST_TOKEN environment variable is required}
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  # ---------------------------------------------------
+  # 5. Order Service
+  # ---------------------------------------------------
+  order-service:
+    build:
+      context: ./order-service
+      dockerfile: Dockerfile
+    restart: always
+    ports:
+      - "5003:5003"
+    environment:
+      - PORT=5003
+      - JWT_SECRET=${JWT_SECRET:?JWT_SECRET environment variable is required}
+      - DATABASE_URL=${DATABASE_URL:?DATABASE_URL environment variable is required}
+      - UPSTASH_REDIS_REST_URL=${UPSTASH_REDIS_REST_URL:?UPSTASH_REDIS_REST_URL environment variable is required}
+      - UPSTASH_REDIS_REST_TOKEN=${UPSTASH_REDIS_REST_TOKEN:?UPSTASH_REDIS_REST_TOKEN environment variable is required}
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  # ---------------------------------------------------
+  # 6. Payment Service
+  # ---------------------------------------------------
+  payment-service:
+    build:
+      context: ./payment-service
+      dockerfile: Dockerfile
+    restart: always
+    ports:
+      - "5004:5004"
+    environment:
+      - PORT=5004
+      - JWT_SECRET=${JWT_SECRET:?JWT_SECRET environment variable is required}
+      - DATABASE_URL=${DATABASE_URL:?DATABASE_URL environment variable is required}
+      - ORDER_SERVICE_URL=http://order-service:5003
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  # ---------------------------------------------------
+  # 7. Frontend Application
+  # ---------------------------------------------------
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    restart: always
+    ports:
+      - "5173:5173"
+    environment:
+      - VITE_API_BASE_URL=${VITE_API_BASE_URL:-http://localhost:5000/api}
+    depends_on:
+      - api-gateway
+
+volumes:
+  postgres_data:

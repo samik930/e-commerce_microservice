@@ -1,15 +1,15 @@
 require("dotenv").config();
 const express = require("express");
-const cors = require("cors");
 const orderRoutes = require("./routes/orderRoutes");
+const cartRoutes = require("./routes/cartRoutes");
 
 const app = express();
 
-app.use(cors());
 app.use(express.json());
 
 // Exposed to API Gateway
 app.use("/api/orders", orderRoutes);
+app.use("/api/cart", cartRoutes);
 
 app.get("/", (req, res) => {
   res.send("Order Service Running...");

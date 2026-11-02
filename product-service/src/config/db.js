@@ -1,14 +1,17 @@
-const mysql = require('mysql2/promise');
-require('dotenv').config({ path: '../../.env' });
+const { Pool } = require("pg");
 
-const pool = mysql.createPool({
-  host: process.env.DB_HOST || 'localhost',
-  user: process.env.DB_USER || 'root',
-  password: process.env.DB_PASSWORD || 'plus91',
-  database: process.env.DB_NAME || 'microservice_product',
-  waitForConnections: true,
-  connectionLimit: 10,
-  queueLimit: 0
+const sslConfig =
+  process.env.DATABASE_SSL === "true" ||
+  (process.env.DATABASE_URL && process.env.DATABASE_URL.includes("supabase.co"))
+    ? { rejectUnauthorized: false }
+    : false;
+
+const pool = new Pool({
+  connectionString: process.env.DATABASE_URL,
+  ssl: sslConfig,
 });
 
-module.exports = pool;
+module.exports = {
+  query: (text, params) => pool.query(text, params),
+  pool,
+};
