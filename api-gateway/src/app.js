@@ -23,13 +23,15 @@ app.use(
   cors({
     origin: true,
     methods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
-    allowedHeaders: ["Content-Type", "Authorization", "x-user-id"],
+    allowedHeaders: ["Content-Type", "Authorization", "x-user-id", "idempotency-key", "Idempotency-Key"],
     credentials: true,
   })
 );
 
 app.use((req, res, next) => {
-  console.log("Incoming Request:", req.method, req.url);
+  const instance = process.env.GATEWAY_INSTANCE || "gateway-primary";
+  res.setHeader("X-Gateway-Instance", instance);
+  console.log(`[${instance}] Incoming Request:`, req.method, req.url);
   next();
 });
 

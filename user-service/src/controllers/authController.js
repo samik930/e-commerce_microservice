@@ -5,12 +5,14 @@ const redis = require('../config/redis');
 
 exports.register = async (req, res) => {
   try {
-    const { name, email, password } = req.body;
+    const { name, email, password, role } = req.body;
 
     // 1. Validate input
     if (!name || !email || !password) {
       return res.status(400).json({ message: "All fields required" });
     }
+
+    const assignedRole = (role === 'seller') ? 'seller' : 'customer';
 
     // 2. Check if user exists
     const userResult = await db.query(
@@ -27,15 +29,15 @@ exports.register = async (req, res) => {
 
     // 4. Save user
     const newRecord = await db.query(
-      "INSERT INTO users (name, email, password) VALUES ($1, $2, $3) RETURNING id, name, email",
-      [name, email, hashedPassword]
+      "INSERT INTO users (name, email, password, role) VALUES ($1, $2, $3, $4) RETURNING id, name, email, role",
+      [name, email, hashedPassword, assignedRole]
     );
 
     const user = newRecord.rows[0];
 
     // 5. Generate JWT Token
     const token = jwt.sign(
-      { id: user.id, email: user.email },
+      { id: user.id, email: user.email, role: user.role },
       process.env.JWT_SECRET,
       { expiresIn: "1d" }
     );
@@ -80,6 +82,7 @@ exports.login = async (req, res) => {
     }
 
     const user = userResult.rows[0];
+    const userRole = user.role || 'customer';
 
     // 3. Compare password
     const isMatch = await bcrypt.compare(password, user.password);
@@ -90,7 +93,7 @@ exports.login = async (req, res) => {
 
     // 4. Generate JWT
     const token = jwt.sign(
-      { id: user.id, email: user.email },
+      { id: user.id, email: user.email, role: userRole },
       process.env.JWT_SECRET,
       { expiresIn: "1d" }
     );
@@ -109,6 +112,7 @@ exports.login = async (req, res) => {
         id: user.id,
         name: user.name,
         email: user.email,
+        role: userRole,
       },
     });
 
@@ -170,7 +174,7 @@ exports.getMe = async (req, res) => {
 
     const decoded = jwt.verify(token, process.env.JWT_SECRET);
     const userResult = await db.query(
-      "SELECT id, name, email FROM users WHERE id = $1",
+      "SELECT id, name, email, role FROM users WHERE id = $1",
       [decoded.id]
     );
 
@@ -178,7 +182,10 @@ exports.getMe = async (req, res) => {
       return res.status(404).json({ message: "User not found" });
     }
 
-    return res.json({ user: userResult.rows[0] });
+    const userData = userResult.rows[0];
+    userData.role = userData.role || 'customer';
+
+    return res.json({ user: userData });
   } catch (error) {
     console.error("getMe error:", error.message);
     return res.status(401).json({ message: "Invalid or expired token" });

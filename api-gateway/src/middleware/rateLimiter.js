@@ -10,6 +10,11 @@ const redis = require("../config/redis");
 const createRateLimiter = ({ windowInSeconds = 60, maxRequests = 100, prefix = "ratelimit" } = {}) => {
   return async (req, res, next) => {
     try {
+      // Allow bypass for internal load testing / benchmarking
+      if (req.headers["x-bypass-ratelimit"] === "true") {
+        return next();
+      }
+
       // Determine client IP
       const ip = req.headers["x-forwarded-for"]?.split(",")[0]?.trim() || req.ip || req.socket.remoteAddress || "127.0.0.1";
       const key = `${prefix}:${ip}:${req.path}`;
